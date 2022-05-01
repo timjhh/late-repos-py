@@ -1,3 +1,15 @@
+###
+##
+## Late Repo Scraper
+## Author: Tim Harrold - timjharrold@gmail.com
+## Scrapes a github organization for late projects as specified in a .txt file
+## File should contain comma separated values including a module name, starting date, and ending date
+##
+## The -n flag can be optionally provided to match all projects with a certain name
+## E.g. `python3 late-repos.py -n 3d-graphics` will only return repos containing the name `3d-graphics`
+##
+###
+
 from github import Github
 import time
 from time import mktime
@@ -10,6 +22,16 @@ from datetime import date
 ###
 AUTH_TOKEN = ""
 ORG_NAME = ""
+MATCH_NAME = None
+
+# Command line argument invoked
+if(len(sys.argv) > 1):
+    if(sys.argv[1] == "-n"):
+        if(len(sys.argv) > 2):
+            MATCH_NAME = sys.argv[2]
+        else:
+            sys.exit("Usage: python3 late-repos.py -n [Project_Name]")
+
 
 gh = Github(AUTH_TOKEN)
 
@@ -40,6 +62,10 @@ ranges.close()
 
 for repo in gh.get_organization(ORG_NAME).get_repos():
 
+    if(MATCH_NAME != None):
+        if(MATCH_NAME not in repo.name.lower()):
+            continue
+
     # datetime.datetime objects
     created = repo.created_at.timestamp()
     finished = repo.pushed_at.timestamp()
@@ -50,7 +76,8 @@ for repo in gh.get_organization(ORG_NAME).get_repos():
         if((mod[1] <= created) and (created <= mod[2])): # Created in reasonable timespan
 
             if(finished >= mod[2]):
-                print(repo.name + " is late")
-                print(str(date.fromtimestamp(created)) + " " + str(date.fromtimestamp(finished)) + " " + repo.name)
-                print(str(created) + " " + str(finished) + " " + repo.name)
-                print(str(modules[0][1]) + " " + str(modules[0][2]) + " " + repo.name + "\n")
+                print(mod[0] + ": " + repo.name)
+                print("Repo last updated: " + date.fromtimestamp(finished))
+                #print(str(date.fromtimestamp(created)) + " " + str(date.fromtimestamp(finished)) + " " + repo.name)
+                #print(str(created) + " " + str(finished) + " " + repo.name)
+                #print(str(modules[0][1]) + " " + str(modules[0][2]) + " " + repo.name + "\n")
