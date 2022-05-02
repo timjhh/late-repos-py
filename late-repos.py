@@ -36,8 +36,21 @@ DAYS = 0
 
 syslen = len(sys.argv)
 
+# Total repo count
+count = 0
+
+print("For a list of all commands, run `python3 late-repos.py -h`")
+
 # Command line argument invoked
 if(syslen > 1):
+    if("-h" in sys.argv):
+        print("Options:")
+        print("     -n [s] only prints repos containing substring s, useful for checking only certain projects")
+        print("     -t [d] adds a buffer to the latest day a repo can be created in days")
+        print("     -h print this help menu again")
+        sys.exit()
+    else:
+        print("Parsing args...")
     if("-n" in sys.argv):
         n_idx = sys.argv.index("-n")
         if(syslen >= n_idx+1):
@@ -82,30 +95,19 @@ for line in ranges:
         mod_dict[arr[0]] = []
 
         # Convert both dates to time_struct objects
-        t1 = time.strptime(arr[1], "%m/%d/%Y")
-        t2 = time.strptime(arr[2], "%m/%d/%Y")
-
-        dt1 = mktime(t1) # Original timestamp in seconds
-        dt2 = mktime(t2)
+        # Then convert to seconds via mktime()
+        t1 = mktime(time.strptime(arr[1], "%m/%d/%Y"))
+        t2 = mktime(time.strptime(arr[2], "%m/%d/%Y"))
         
-        #dt1 = datetime.datetime(t1.tm_year, t1.tm_mon, t1.tm_wday)
-        #dt2 = datetime.datetime(t2.tm_year, t2.tm_mon, t2.tm_wday)
-
-        #dt1 = datetime.combine(date.fromtimestamp(mktime(t1)),datetime.min.time())
-        #dt2 = datetime.combine(date.fromtimestamp(mktime(t2)),datetime.min.time())
-
-        modules.append([arr[0],dt1,dt2])
+        modules.append([arr[0],t1,t2])
 
 
 ranges.close()
-count = 0
 
-print("Reading repos....")
-print("--------------------")
+print("Reading repos....\n")
 
 for repo in gh.get_organization(ORG_NAME).get_repos():
 
-    #print(count)
     count += 1
 
     if(MATCH_NAME != None):
@@ -124,6 +126,8 @@ for repo in gh.get_organization(ORG_NAME).get_repos():
     ###
     ##
     ## Begin alternate commit-based approach 
+    ## Consider moving this inside of our check for repos created in the right timespan
+    ## to cut down on API calls made significantly
     ##
     ###
     #last = None
@@ -154,14 +158,12 @@ for repo in gh.get_organization(ORG_NAME).get_repos():
 
     for mod in modules:
 
-        if((mod[1] <= created)): # Created in reasonable timespan +DAYS +datetime.timedelta(days=DAYS)  ////  and (created < (mod[2]+DAYS))
-
-            if(finished > mod[2] and (created <= mod[2]+DAYS)): # Finished before deadline
+        if((mod[1] <= created) and (created <= mod[2]+DAYS)): # Created in reasonable timespan
+            if(finished > mod[2]): # Finished before deadline
                 mod_dict[mod[0]].append(repo.name + "\nCreated At: " + str(repo.created_at) + "\nUpdated At: " + str(repo.pushed_at) + "\n")
-                #print("Module: " + mod[0] + ": " + repo.name)
-                #print("Repo created: " + str(repo.created_at))
-                #print("Repo last updated: " + str(repo.pushed_at))
+                
 
+# Pretty print dictionary, itemized by module
 print("--------------------\nTotal Repos Read: " + str(count) + "\n")
 for key in mod_dict.keys():
     print("--------------------")
