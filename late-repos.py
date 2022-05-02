@@ -70,6 +70,7 @@ except FileNotFoundError:
     sys.exit("File not found!")
 
 modules = []
+mod_dict = {}
 
 for line in ranges:
 
@@ -77,6 +78,8 @@ for line in ranges:
     if(len(arr) != 3):
         print("Skipping line with insufficient length...")
     else:
+
+        mod_dict[arr[0]] = []
 
         # Convert both dates to time_struct objects
         t1 = time.strptime(arr[1], "%m/%d/%Y")
@@ -97,9 +100,12 @@ for line in ranges:
 ranges.close()
 count = 0
 
+print("Reading repos....")
+print("--------------------")
+
 for repo in gh.get_organization(ORG_NAME).get_repos():
 
-    print(count)
+    #print(count)
     count += 1
 
     if(MATCH_NAME != None):
@@ -107,61 +113,59 @@ for repo in gh.get_organization(ORG_NAME).get_repos():
             continue
 
     # datetime.datetime objects
+    # Note: while repo.pushed_at should supply the last time a repo was pushed to
+    # It seems to provide a date later than the last commmit in some cases
+    # An alternative approach is commented out below that gets the last commit from the repo
+    # However, it is incredibly slow and would benefit from use in tandum with the -n flag
     created = repo.created_at.timestamp()
-    #finished = repo.pushed_at.timestamp()
+    finished = repo.pushed_at.timestamp()
 
 
-    last = None
+    ###
+    ##
+    ## Begin alternate commit-based approach 
+    ##
+    ###
+    #last = None
+    #finished = repo.get_commits()
 
-    finished = repo.get_commits()
+    # Optional code for last commit based approach
+    # if(finished == None):
+    #     continue
 
-    #print(finished)
+    # try:
+    #     if(finished.totalCount > 0):
+    #         last = finished[finished.totalCount-1]
+    #         print("good " + finished.totalCount-1)
+    #     else:
+    #         continue
+    # except:
+    #     continue
 
-    if(finished == None):
-        continue
+    # if(last == None):
+    #     continue
 
-    try:
-        if(finished.totalCount > 0):
-            last = finished[finished.totalCount-1]
-            print("good " + finished.totalCount-1)
-        else:
-            continue
-    except:
-        continue
-
-    if(last == None):
-        continue
-
-    finished = last.commit.author.date.timestamp()
-
-    # print("-----")   
-    # print(created)  
-    # print(finished)
-
-    #created = repo.created_at
-    #finished = repo.pushed_at
+    # finished = last.commit.author.date.timestamp()
+    ###
+    ##
+    ## End alternate commit-based approach 
+    ##
+    ###
 
     for mod in modules:
 
         if((mod[1] <= created)): # Created in reasonable timespan +DAYS +datetime.timedelta(days=DAYS)  ////  and (created < (mod[2]+DAYS))
 
             if(finished > mod[2] and (created <= mod[2]+DAYS)): # Finished before deadline
-                print("--------------------\n" + mod[0] + ": " + repo.name)
-                print("Repo last updated: " + str(repo.pushed_at) + "\n--------------------\n")
-                print("Deadline " + str(mod[2]))
-                #print("Repo last updated: " + str(date.fromtimestamp(finished)) + "\n--------------------\n")
-                
-                #print(str(date.fromtimestamp(created)) + " " + str(date.fromtimestamp(finished)) + " " + repo.name)
-                #print(str(created) + " " + str(finished) + " " + repo.name)
-                #print(str(modules[0][1]) + " " + str(modules[0][2]) + " " + repo.name + "\n")
-        # else:
-        #     if(MATCH_NAME in repo.name.lower()):
-        #         print("--------------------\n" + mod[0] + ": " + repo.name + " Created after deadline")
-        #         print("Repo created: " + str(date.fromtimestamp(created)) + "\n--------------------\n")           
+                mod_dict[mod[0]].append(repo.name + "\nCreated At: " + str(repo.created_at) + "\nUpdated At: " + str(repo.pushed_at) + "\n")
+                #print("Module: " + mod[0] + ": " + repo.name)
+                #print("Repo created: " + str(repo.created_at))
+                #print("Repo last updated: " + str(repo.pushed_at))
 
-        # if(MATCH_NAME is not None):
-        #     if((created > mod[2]) and (MATCH_NAME in repo.name.lower())):
-        #         print("--------------------\n" + mod[0] + ": " + repo.name + " may be created after deadline")
-        #         print("Repo created: " + str(created) + " " + " Deadline " + str(mod[2]) + "\n--------------------\n")
-        #         #print("Repo created: " + str(date.fromtimestamp(created)) + " " + " Deadline " + str(date.fromtimestamp(mod[2])) + "\n--------------------\n")
-
+print("--------------------\nTotal Repos Read: " + str(count) + "\n")
+for key in mod_dict.keys():
+    print("--------------------")
+    print("---- Module: " + key + " ----")
+    for item in mod_dict[key]:
+        print(item)
+print("--------------------")
