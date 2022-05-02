@@ -33,6 +33,9 @@ ORG_NAME = ""
 MATCH_NAME = None
 DAYS = 0
 
+if(AUTH_TOKEN == "" or ORG_NAME == ""):
+    sys.exit("Error: Auth token or organization name missing")
+
 syslen = len(sys.argv)
 
 # Total repo count
