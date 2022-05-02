@@ -7,12 +7,12 @@ Install dependencies via:
 
 Run via:
 
-python3 late-repos.py [-n [Project_Name] -t [Days #]]
+`python3 late-repos.py [-n [Project_Name] -t [Days #]]`
 
 The script takes several optional command line arguments:
 
-  -n [s] only prints repos containing substring s, useful for checking only certain projects
+  `-n [s]` only prints repos containing substring s, useful for checking only certain projects
 
-  -t [d] adds a buffer to the latest day a repo can be created in days
+  `-t [d]` adds a buffer to the latest day a repo can be created in days
 
-  -h print this help menu again
+  `-h` print a help menu
