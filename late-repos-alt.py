@@ -17,7 +17,6 @@
 ###
 
 from multiprocessing.sharedctypes import Value
-import traceback
 from github import Github
 import time
 from time import mktime
@@ -29,8 +28,8 @@ from datetime import date
 ## Replace AUTH_TOKEN with your personal github token via:
 ## Github -> Settings -> Developer Settings -> Personal access tokens -> Generate new token
 ###
-AUTH_TOKEN = ""
-ORG_NAME = ""
+AUTH_TOKEN = "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"
+ORG_NAME = "uvmcs120s2022"
 MATCH_NAME = None
 DAYS = 0
 
@@ -58,11 +57,7 @@ if(syslen > 1):
 # Will still be 0 if arg not provided
 DAYS = DAYS * 24 * 60 * 60
 
-try:
-    gh = Github(AUTH_TOKEN)
-except Exception:
-    traceback.print_exc()
-    print("HTTP Request Failed")
+gh = Github(AUTH_TOKEN)
 
 try:
     ranges = open("dates.txt")
@@ -95,73 +90,50 @@ for line in ranges:
 
 
 ranges.close()
-count = 0
 
-for repo in gh.get_organization(ORG_NAME).get_repos():
+try:
+    for repo in gh.get_organization(ORG_NAME).get_repos():
 
-    print(count)
-    count += 1
+        if(MATCH_NAME != None):
+            if(MATCH_NAME not in repo.name.lower()):
+                continue
 
-    if(MATCH_NAME != None):
-        if(MATCH_NAME not in repo.name.lower()):
-            continue
-
-    # datetime.datetime objects
-    created = repo.created_at.timestamp()
-    #finished = repo.pushed_at.timestamp()
+        # datetime.datetime objects
+        created = repo.created_at.timestamp()
+        #finished = repo.pushed_at.timestamp()
 
 
-    last = None
 
-    finished = repo.get_commits()
 
-    #print(finished)
+        finished = repo.get_commits()
 
-    if(finished == None):
-        continue
 
-    try:
-        if(finished.totalCount > 0):
-            last = finished[finished.totalCount-1]
-            print("good " + finished.totalCount-1)
-        else:
-            continue
-    except:
-        continue
+        
+        #created = repo.created_at
+        #finished = repo.pushed_at
 
-    if(last == None):
-        continue
+        for mod in modules:
 
-    finished = last.commit.author.date.timestamp()
+            if((mod[1] <= created)): # Created in reasonable timespan +DAYS +datetime.timedelta(days=DAYS)  ////  and (created < (mod[2]+DAYS))
 
-    # print("-----")   
-    # print(created)  
-    # print(finished)
+                if(finished > mod[2] and (created <= mod[2]+DAYS)): # Finished before deadline
+                    print("--------------------\n" + mod[0] + ": " + repo.name)
+                    print("Repo last updated: " + str(repo.pushed_at) + "\n--------------------\n")
+                    print("Deadline " + str(mod[2]))
+                    #print("Repo last updated: " + str(date.fromtimestamp(finished)) + "\n--------------------\n")
+                    
+                    #print(str(date.fromtimestamp(created)) + " " + str(date.fromtimestamp(finished)) + " " + repo.name)
+                    #print(str(created) + " " + str(finished) + " " + repo.name)
+                    #print(str(modules[0][1]) + " " + str(modules[0][2]) + " " + repo.name + "\n")
+            # else:
+            #     if(MATCH_NAME in repo.name.lower()):
+            #         print("--------------------\n" + mod[0] + ": " + repo.name + " Created after deadline")
+            #         print("Repo created: " + str(date.fromtimestamp(created)) + "\n--------------------\n")           
 
-    #created = repo.created_at
-    #finished = repo.pushed_at
-
-    for mod in modules:
-
-        if((mod[1] <= created)): # Created in reasonable timespan +DAYS +datetime.timedelta(days=DAYS)  ////  and (created < (mod[2]+DAYS))
-
-            if(finished > mod[2] and (created <= mod[2]+DAYS)): # Finished before deadline
-                print("--------------------\n" + mod[0] + ": " + repo.name)
-                print("Repo last updated: " + str(repo.pushed_at) + "\n--------------------\n")
-                print("Deadline " + str(mod[2]))
-                #print("Repo last updated: " + str(date.fromtimestamp(finished)) + "\n--------------------\n")
-                
-                #print(str(date.fromtimestamp(created)) + " " + str(date.fromtimestamp(finished)) + " " + repo.name)
-                #print(str(created) + " " + str(finished) + " " + repo.name)
-                #print(str(modules[0][1]) + " " + str(modules[0][2]) + " " + repo.name + "\n")
-        # else:
-        #     if(MATCH_NAME in repo.name.lower()):
-        #         print("--------------------\n" + mod[0] + ": " + repo.name + " Created after deadline")
-        #         print("Repo created: " + str(date.fromtimestamp(created)) + "\n--------------------\n")           
-
-        # if(MATCH_NAME is not None):
-        #     if((created > mod[2]) and (MATCH_NAME in repo.name.lower())):
-        #         print("--------------------\n" + mod[0] + ": " + repo.name + " may be created after deadline")
-        #         print("Repo created: " + str(created) + " " + " Deadline " + str(mod[2]) + "\n--------------------\n")
-        #         #print("Repo created: " + str(date.fromtimestamp(created)) + " " + " Deadline " + str(date.fromtimestamp(mod[2])) + "\n--------------------\n")
-
+            # if(MATCH_NAME is not None):
+            #     if((created > mod[2]) and (MATCH_NAME in repo.name.lower())):
+            #         print("--------------------\n" + mod[0] + ": " + repo.name + " may be created after deadline")
+            #         print("Repo created: " + str(created) + " " + " Deadline " + str(mod[2]) + "\n--------------------\n")
+            #         #print("Repo created: " + str(date.fromtimestamp(created)) + " " + " Deadline " + str(date.fromtimestamp(mod[2])) + "\n--------------------\n")
+except:
+    print("HTTP Request Failed")
