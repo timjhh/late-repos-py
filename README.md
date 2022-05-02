@@ -1,14 +1,18 @@
 # late-repos-py
 Github org scraper for finding late projects
 
-Requires PyGithub package to run, installable via
+Install dependencies via:
 
 `pip install PyGithub`
 
-The script takes several command line arguments:
+Run via:
 
--n [s] only prints repos containing substring s, useful for checking only certain projects
+python3 late-repos.py [-n [Project_Name] -t [Days #]]
 
--t [d] adds a buffer to the latest day a repo can be created in days
+The script takes several optional command line arguments:
 
--h print this help menu again
+  -n [s] only prints repos containing substring s, useful for checking only certain projects
+
+  -t [d] adds a buffer to the latest day a repo can be created in days
+
+  -h print this help menu again
