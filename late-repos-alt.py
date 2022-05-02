@@ -28,8 +28,8 @@ from datetime import date
 ## Replace AUTH_TOKEN with your personal github token via:
 ## Github -> Settings -> Developer Settings -> Personal access tokens -> Generate new token
 ###
-AUTH_TOKEN = "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"
-ORG_NAME = "uvmcs120s2022"
+AUTH_TOKEN = ""
+ORG_NAME = ""
 MATCH_NAME = None
 DAYS = 0
 
