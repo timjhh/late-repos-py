@@ -16,7 +16,6 @@
 ##
 ###
 
-from multiprocessing.sharedctypes import Value
 import traceback
 from github import Github
 import time
@@ -75,7 +74,7 @@ try:
     gh = Github(AUTH_TOKEN)
 except Exception:
     traceback.print_exc()
-    print("HTTP Request Failed")
+    sys.exit("HTTP Request Failed")
 
 try:
     ranges = open("dates.txt")
@@ -164,9 +163,9 @@ for repo in gh.get_organization(ORG_NAME).get_repos():
                 
 
 # Pretty print dictionary, itemized by module
-print("--------------------\nTotal Repos Read: " + str(count) + "\n")
+print("--------------------\n\nTotal Repos Read: " + str(count) + "\n")
 for key in mod_dict.keys():
-    print("--------------------")
+    print("--------------------\n")
     print("---- Module: " + key + " ----")
     for item in mod_dict[key]:
         print(item)
