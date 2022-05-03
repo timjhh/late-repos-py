@@ -22,7 +22,8 @@ import time
 from time import mktime
 import sys
 import datetime
-from datetime import date
+from backports.zoneinfo import ZoneInfo
+from datetime import date, timedelta
 
 ###
 ## Replace AUTH_TOKEN with your personal github token via:
@@ -32,6 +33,10 @@ AUTH_TOKEN = ""
 ORG_NAME = ""
 MATCH_NAME = None
 DAYS = 0
+
+# UTC is 4 hours ahead of EST, so we need to subtract this from the gh timestamp
+# Note: this script may not run as intended if in another timezone
+UTC_OFFSET = 4*60*60 
 
 if(AUTH_TOKEN == "" or ORG_NAME == ""):
     sys.exit("Error: Auth token or organization name missing")
@@ -86,6 +91,7 @@ except FileNotFoundError:
 
 modules = []
 mod_dict = {}
+finished = None
 
 for line in ranges:
 
@@ -100,7 +106,7 @@ for line in ranges:
         # Then convert to seconds via mktime()
         t1 = mktime(time.strptime(arr[1], "%m/%d/%Y"))
         t2 = mktime(time.strptime(arr[2], "%m/%d/%Y"))
-        
+
         modules.append([arr[0],t1,t2])
 
 
@@ -122,7 +128,7 @@ for repo in gh.get_organization(ORG_NAME).get_repos():
     # An alternative approach is commented out below that gets the last commit from the repo
     # However, it is incredibly slow and would benefit from use in tandum with the -n flag
     created = repo.created_at.timestamp()
-    finished = repo.pushed_at.timestamp()
+    finished = (repo.pushed_at-timedelta(seconds=UTC_OFFSET)).timestamp()
 
 
     ###
@@ -132,26 +138,28 @@ for repo in gh.get_organization(ORG_NAME).get_repos():
     ## to cut down on API calls made significantly
     ##
     ###
-    #last = None
-    #finished = repo.get_commits()
-
-    # Optional code for last commit based approach
-    # if(finished == None):
-    #     continue
-
     # try:
-    #     if(finished.totalCount > 0):
-    #         last = finished[finished.totalCount-1]
-    #         print("good " + finished.totalCount-1)
-    #     else:
-    #         continue
+    #     master = repo.get_branch("master")
     # except:
-    #     continue
+    #     print("no master branch")
+    #     finished = repo.updated_at
 
-    # if(last == None):
-    #     continue
+    # if(finished == None):
+    #     print("aaa")
+    #     sha_com = master.commit
+    #     commit = repo.get_commit(sha=sha_com.sha)
+    #     timeObj = commit.commit.author.date
 
-    # finished = last.commit.author.date.timestamp()
+    #     finished = timeObj
+
+    #     utc = ZoneInfo('UTC')
+    #     local_timezone = ZoneInfo("localtime")
+
+    #     utc_time = finished.replace(tzinfo=utc)
+    #     local = utc_time.astimezone(local_timezone)
+
+    #     finished = local.timestamp()
+    #     print(str(finished) + " " + repo.name)
     ###
     ##
     ## End alternate commit-based approach 
@@ -162,14 +170,16 @@ for repo in gh.get_organization(ORG_NAME).get_repos():
 
         if((mod[1] <= created) and (created <= mod[2]+DAYS)): # Created in reasonable timespan
             if(finished > mod[2]): # Finished before deadline
-                mod_dict[mod[0]].append(repo.name + "\nCreated At: " + str(repo.created_at) + "\nUpdated At: " + str(repo.pushed_at) + "\n")
-                
+                mod_dict[mod[0]].append(repo.name + "\nCreated At: " + str(repo.created_at-timedelta(seconds=UTC_OFFSET)) + "\nUpdated At: " + str(repo.pushed_at-timedelta(seconds=UTC_OFFSET)) + "\n")
+    # Uncomment this line if implementing alternate approach
+    #finished = None
+
 
 # Pretty print dictionary, itemized by module
 print("--------------------\n\nTotal Repos Read: " + str(count) + "\n")
 for key in mod_dict.keys():
     print("--------------------\n")
-    print("---- Module: " + key + " ----")
+    print("---- Module: " + key + " ----\n")
     for item in mod_dict[key]:
         print(item)
 print("--------------------")
