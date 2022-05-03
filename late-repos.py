@@ -45,6 +45,8 @@ syslen = len(sys.argv)
 
 # Total repo count
 count = 0
+# Named repo count
+matched_count = 0
 
 print("For a list of all commands, run `python3 late-repos.py -h`")
 
@@ -61,7 +63,7 @@ if(syslen > 1):
     if("-n" in sys.argv):
         n_idx = sys.argv.index("-n")
         if(syslen >= n_idx+1):
-            MATCH_NAME = sys.argv[n_idx+1]          
+            MATCH_NAME = sys.argv[n_idx+1].lower()        
         else:
             sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")
     if("-t" in sys.argv):
@@ -121,6 +123,8 @@ for repo in gh.get_organization(ORG_NAME).get_repos():
     if(MATCH_NAME != None):
         if(MATCH_NAME not in repo.name.lower()):
             continue
+        else:
+            matched_count += 1
 
     # datetime.datetime objects
     # Note: while repo.pushed_at should supply the last time a repo was pushed to
@@ -176,7 +180,11 @@ for repo in gh.get_organization(ORG_NAME).get_repos():
 
 
 # Pretty print dictionary, itemized by module
-print("--------------------\n\nTotal Repos Read: " + str(count) + "\n")
+print("--------------------\n\nTotal Repos Read: " + str(count))
+if(MATCH_NAME is not None):
+    print("Matched Repos Read: " + str(matched_count) + "\n")
+else:
+    print("\n")
 for key in mod_dict.keys():
     print("--------------------\n")
     print("---- Module: " + key + " ----\n")
