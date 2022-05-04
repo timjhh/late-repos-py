@@ -38,6 +38,24 @@ DAYS = 0
 # Note: this script may not run as intended if in another timezone
 UTC_OFFSET = 4*60*60 
 
+##
+#
+# Progress bar taken from
+# https://gist.github.com/vladignatyev/06860ec2040cb497f0f3
+#
+##
+def progress(count, total, suffix=''):
+    bar_len = 60
+    filled_len = int(round(bar_len * count / float(total)))
+
+    percents = round(100.0 * count / float(total), 1)
+    bar = '=' * filled_len + '-' * (bar_len - filled_len)
+
+    sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', suffix))
+    sys.stdout.flush()  # As suggested by Rom Ruben
+
+
+
 if(AUTH_TOKEN == "" or ORG_NAME == ""):
     sys.exit("Error: Auth token or organization name missing")
 
@@ -114,11 +132,20 @@ for line in ranges:
 
 ranges.close()
 
-print("Reading repos....\n")
+print("Reading repos....")
 
-for repo in gh.get_organization(ORG_NAME).get_repos():
+repos = None
+
+try:
+    repos = gh.get_organization(ORG_NAME).get_repos()
+except:
+    sys.exit("Error reading repos...")
+
+for repo in repos:
 
     count += 1
+
+    progress(count, repos.totalCount)
 
     if(MATCH_NAME != None):
         if(MATCH_NAME not in repo.name.lower()):
@@ -180,7 +207,7 @@ for repo in gh.get_organization(ORG_NAME).get_repos():
 
 
 # Pretty print dictionary, itemized by module
-print("--------------------\n\nTotal Repos Read: " + str(count))
+print("\n\nTotal Repos Read: " + str(count))
 if(MATCH_NAME is not None):
     print("Matched Repos Read: " + str(matched_count) + "\n")
 else:
