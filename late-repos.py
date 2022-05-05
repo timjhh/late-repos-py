@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 ###
 ##
 ## Late Repo Scraper
@@ -18,6 +19,7 @@
 
 import traceback
 from github import Github
+import configparser
 import time
 from time import mktime
 import sys
@@ -25,12 +27,19 @@ import sys
 #from backports.zoneinfo import ZoneInfo
 from datetime import date, timedelta
 
-###
-## Replace AUTH_TOKEN with your personal github token via:
-## Github -> Settings -> Developer Settings -> Personal access tokens -> Generate new token
-###
-AUTH_TOKEN = ""
-ORG_NAME = ""
+# Parse the config file
+parser = configparser.ConfigParser()
+
+try:
+    parser.read("config.ini")
+except Exception:
+    sys.exit("There was an issue reading config.ini. Please make sure it exists and is formatted correctly.")
+
+
+
+AUTH_TOKEN = parser["settings"]["authToken"]
+ORG_NAME = parser["settings"]["orgName"]
+MODULE = parser["modules"]["module"]
 MATCH_NAME = None
 DAYS = 0
 
@@ -113,21 +122,12 @@ modules = []
 mod_dict = {}
 finished = None
 
-for line in ranges:
-
-    arr = line.split(",")
-    if(len(arr) != 3):
-        print("Skipping line with insufficient length...")
-    else:
-
-        mod_dict[arr[0]] = []
-
-        # Convert both dates to time_struct objects
-        # Then convert to seconds via mktime()
-        t1 = mktime(time.strptime(arr[1], "%m/%d/%Y"))
-        t2 = mktime(time.strptime(arr[2], "%m/%d/%Y"))
-
-        modules.append([arr[0],t1,t2])
+mod_dict[MODULE] = []
+# Convert both dates to time_struct objects
+# Then convert to seconds via mktime()
+t1 = mktime(time.strptime(parser["modules"]["startDate"], "%Y-%m-%d"))
+t2 = mktime(time.strptime(parser["modules"]["endDate"], "%Y-%m-%d"))
+modules.append([MODULE,t1,t2])
 
 
 ranges.close()
