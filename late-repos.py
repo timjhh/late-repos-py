@@ -13,8 +13,8 @@
 # orgName = [your github organization name]
 # [modules]
 # module = [module name]
-# startDate = [start date of module]
-# endDate = [end date of module]
+# startDate = [start date of module YYYY-MM-DD]
+# endDate = [end date of module YYYY-MM-DD]
 # @endcode
 #
 #
@@ -144,7 +144,6 @@ def parseDates():
 def readRepos(gh, modules):
     # attempts to fetch repos from the organization
     try:
-        print(DATA["settings"]["orgName"])
         repos = gh.get_organization(DATA["settings"]["orgName"]).get_repos()
     except:
         sys.exit("Error reading repos...")
