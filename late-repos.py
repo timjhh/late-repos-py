@@ -1,21 +1,27 @@
 #!/usr/bin/env python3
-###
+
 ##
-## Late Repo Scraper
-## Author: Tim Harrold - timjharrold@gmail.com
-## Scrapes a github organization for late projects as specified in a .txt file
-## File should contain comma separated values including a module name, starting date, and ending date
-## Dates should be MM/DD/YY
-##
-## The -n flag can be optionally provided to match all projects with a certain name
-## E.g. `python3 late-repos.py -n 3d-graphics` will only return repos containing the name `3d-graphics`
-##
-## The -t flag can be optionally provided to buffer the ending time by a number of days, so the script will search for projects created between [start,end+n]
-## You might use this over modifying the end date, because a repo created and finished 3 days late would not register as late at all(with an extended due date). Adding this flag
-## registers that program as late, because it is created after the original due date.
-## E.g. `python late-repos.py -d 3` will search for repos created 3 days after the deadline
-##
-###
+# @file late-repos.py
+#
+# @brief Scrapes a github organization for late projects
+#
+# @section config Configuration
+# config.ini should be formatted as follows:
+# @code config.ini 
+# [settings]
+# authToken = [your github auth token]
+# orgName = [your github organization name]
+# [modules]
+# module = [module name]
+# startDate = [start date of module]
+# endDate = [end date of module]
+# @endcode
+#
+#
+# @section authors Author(s)
+# Tim Harrold - timjharrold@gmail.com
+# Connor Milligan - connoramilligan@gmail.com
+#
 
 from email.utils import parsedate
 import traceback
@@ -24,37 +30,49 @@ import configparser
 import time
 from time import mktime
 import sys
-#import datetime
-#from backports.zoneinfo import ZoneInfo
 from datetime import date, timedelta
 
 
-
+## Stores all the values of the config file as a dictionary
 DATA = {}
+## A list of repos that have been read and the number of repos that match the match name
 COUNT = [0,0]
 
+## Global for the match name
 MATCH_NAME = None
+## Global for the buffer days
 DAYS = 0
-# UTC is 4 hours ahead of EST, so we need to subtract this from the gh timestamp
+
+## UTC is 4 hours ahead of EST, so we need to subtract this from the gh timestamp
 # Note: this script may not run as intended if in another timezone
 UTC_OFFSET = 4*60*60 
 
+## Initializes the program
+# Ensures that the config file is formatted correctly and can be read and
+# the global variable DATA is populated with the config file 
+# @return Github object
 def init():
     # Parse the config file
     parser = configparser.ConfigParser()
+
+    # ensure that the config file exists
     try:
         parser.read("config.ini")
     except Exception:
         sys.exit("There was an issue reading config.ini. Please make sure it exists and is formatted correctly.")
 
+    # set the global variable DATA to the config file
     global DATA
     DATA = parser
 
+    # ensure that the auth token is set
     if(not DATA.has_option("settings", "authToken")):
         sys.exit("Error: Auth token missing")
+    # ensure that the org name is set
     if(not DATA.has_option("settings", "orgName")):
         sys.exit("Error: Organization name missing")
 
+    # attempt to create a github object
     try:
         gh = Github(DATA["settings"]["authToken"])
     except Exception:
@@ -64,6 +82,10 @@ def init():
     print("Github initialized...")
     return gh
 
+
+## Parses the command line arguments
+# sets the global variable MATCH_NAME to the name of the repo to match if the -n flag is set
+# sets the global variable DAYS to the number of days to add to the latest day a repo can be created
 def parseArgs():
     # Command line argument invoked
     if(len(sys.argv) > 1):
@@ -96,29 +118,51 @@ def parseArgs():
             else:
                 sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")
 
+## Parses the dates from the config file
+#
+# formats the dates and modules into a list of tuples which can be parsed by readRepos
+#
+# @return list of tuples containing the module name, start date, and end date
+# @toDo: add error checking for the dates
+# @toDo: allow multiple modules to be parsed
 def parseDates():
     modules = []
+
+    # format the start and end dates
     t1 = mktime(time.strptime(DATA["modules"]["startDate"], "%Y-%m-%d"))
     t2 = mktime(time.strptime(DATA["modules"]["endDate"], "%Y-%m-%d"))
     modules.append([DATA["modules"]["module"],t1,t2])
 
     return modules
 
+## Reads the repos from the github organization
+#
+# will only read repos that are created after the start date and before the end date
+# adds the repo to the dictionary if it is not already there
+#
+# @param gh Github object
+# @param modules list of tuples containing the module name, start date, and end date
+# @return dictionary of modules and repos
 def readRepos(gh, modules):
+    # attempts to fetch repos from the organization
     try:
         repos = gh.get_organization(DATA["settings"]["orgName"]).get_repos()
     except:
         sys.exit("Error reading repos...")
 
     print("Reading repos....")
-    modDict = {}
+    # initialize the dictionary
+    modDict = {DATA["modules"]["module"]: []}
 
+    # iterate through the repos
     for repo in repos:
-
+        # count the number of repos read
         COUNT[0] += 1
 
+        # display a progress bar
         progress(COUNT[0], repos.totalCount)
 
+        # if a match name is set, check if the repo name contains the match name
         if(MATCH_NAME != None):
             if(MATCH_NAME not in repo.name.lower()):
                 continue
@@ -133,13 +177,20 @@ def readRepos(gh, modules):
         created = repo.created_at.timestamp()
         finished = (repo.pushed_at-timedelta(seconds=UTC_OFFSET)).timestamp()
 
+        # loop through the modules
         for mod in modules:
             if((mod[1] <= created) and (created <= mod[2] + (DAYS * 24 * 60 * 60))): # Created in reasonable timespan
                 if(finished > mod[2]): # Finished before deadline
+                    # add the repo to the dictionary
                     modDict[mod[0]].append(repo.name + "\nCreated At: " + str(repo.created_at-timedelta(seconds=UTC_OFFSET)) + "\nUpdated At: " + str(repo.pushed_at-timedelta(seconds=UTC_OFFSET)) + "\n")
     
     return modDict
 
+## Prints the repos
+#
+# Prints the repos in the dictionary in a readable format
+#
+# @param modDict dictionary of modules and repos
 def printRepos(modDict):
     # Pretty print dictionary, itemized by module
     print("\n\nTotal Repos Read: " + str(COUNT[0]))
@@ -155,11 +206,13 @@ def printRepos(modDict):
     print("--------------------")
 
     
-##
+## Progress bar
 #
 # Progress bar taken from
 # https://gist.github.com/vladignatyev/06860ec2040cb497f0f3
 #
+# @param count number of items read
+# @param total total number of items
 ##
 def progress(count, total, suffix=''):
     bar_len = 60
@@ -171,7 +224,9 @@ def progress(count, total, suffix=''):
     sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', suffix))
     sys.stdout.flush()  # As suggested by Rom Ruben
 
-
+## Main
+# 
+# Parses the arguments, reads the repos, and prints the repos
 def main():
     parseArgs()
     gh = init()
@@ -179,5 +234,6 @@ def main():
     modDict = readRepos(gh, modules)
     printRepos(modDict)
 
+# Run the main function
 if __name__=="__main__":
     main()
