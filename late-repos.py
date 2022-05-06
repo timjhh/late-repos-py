@@ -37,11 +37,8 @@ from datetime import date, timedelta
 DATA = {}
 ## A list of repos that have been read and the number of repos that match the match name
 COUNT = [0,0]
-
-## Global for the match name
-MATCH_NAME = None
-## Global for the buffer days
-DAYS = 0
+## Command Line Args denoting optional matched name and days offset
+ARGS = [None,0]
 
 ## UTC is 4 hours ahead of EST, so we need to subtract this from the gh timestamp
 # Note: this script may not run as intended if in another timezone
@@ -87,6 +84,10 @@ def init():
 # sets the global variable MATCH_NAME to the name of the repo to match if the -n flag is set
 # sets the global variable DAYS to the number of days to add to the latest day a repo can be created
 def parseArgs():
+
+    # Arguments for MATCH_NAME, days offset
+    args = [None,0]
+
     # Command line argument invoked
     if(len(sys.argv) > 1):
         # Check for help flag
@@ -103,7 +104,7 @@ def parseArgs():
         if("-n" in sys.argv):
             n_idx = sys.argv.index("-n")
             if(len(sys.argv) >= n_idx+1):
-                MATCH_NAME = sys.argv[n_idx+1].lower()        
+                ARGS[0] = sys.argv[n_idx+1].lower()        
             else:
                 sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")
 
@@ -112,11 +113,12 @@ def parseArgs():
             t_idx = sys.argv.index("-t")
             if(len(sys.argv) >= t_idx+1):
                 try:
-                    DAYS = int(sys.argv[t_idx+1])
+                    ARGS[1] = int(sys.argv[t_idx+1])
                 except:
                     sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")    
             else:
                 sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")
+    return args
 
 ## Parses the dates from the config file
 #
@@ -143,9 +145,10 @@ def parseDates():
 # @param gh Github object
 # @param modules list of tuples containing the module name, start date, and end date
 # @return dictionary of modules and repos
-def readRepos(gh, modules):
+def readRepos(gh, modules, args):
     # attempts to fetch repos from the organization
     try:
+        print(DATA["settings"]["orgName"])
         repos = gh.get_organization(DATA["settings"]["orgName"]).get_repos()
     except:
         sys.exit("Error reading repos...")
@@ -156,6 +159,7 @@ def readRepos(gh, modules):
 
     # iterate through the repos
     for repo in repos:
+
         # count the number of repos read
         COUNT[0] += 1
 
@@ -163,8 +167,8 @@ def readRepos(gh, modules):
         progress(COUNT[0], repos.totalCount)
 
         # if a match name is set, check if the repo name contains the match name
-        if(MATCH_NAME != None):
-            if(MATCH_NAME not in repo.name.lower()):
+        if(ARGS[0] != None):
+            if(ARGS[0] not in repo.name.lower()):
                 continue
             else:
                 COUNT[1] += 1
@@ -179,7 +183,7 @@ def readRepos(gh, modules):
 
         # loop through the modules
         for mod in modules:
-            if((mod[1] <= created) and (created <= mod[2] + (DAYS * 24 * 60 * 60))): # Created in reasonable timespan
+            if((mod[1] <= created) and (created <= mod[2] + (int(ARGS[1]) * 24 * 60 * 60))): # Created in reasonable timespan
                 if(finished > mod[2]): # Finished before deadline
                     # add the repo to the dictionary
                     modDict[mod[0]].append(repo.name + "\nCreated At: " + str(repo.created_at-timedelta(seconds=UTC_OFFSET)) + "\nUpdated At: " + str(repo.pushed_at-timedelta(seconds=UTC_OFFSET)) + "\n")
@@ -191,10 +195,10 @@ def readRepos(gh, modules):
 # Prints the repos in the dictionary in a readable format
 #
 # @param modDict dictionary of modules and repos
-def printRepos(modDict):
+def printRepos(modDict, args):
     # Pretty print dictionary, itemized by module
     print("\n\nTotal Repos Read: " + str(COUNT[0]))
-    if(MATCH_NAME is not None):
+    if(ARGS[0] is not None):
         print("Matched Repos Read: " + str(COUNT[1]) + "\n")
     else:
         print("\n")
