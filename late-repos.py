@@ -17,6 +17,7 @@
 ##
 ###
 
+from email.utils import parsedate
 import traceback
 from github import Github
 import configparser
@@ -27,26 +28,133 @@ import sys
 #from backports.zoneinfo import ZoneInfo
 from datetime import date, timedelta
 
-# Parse the config file
-parser = configparser.ConfigParser()
-
-try:
-    parser.read("config.ini")
-except Exception:
-    sys.exit("There was an issue reading config.ini. Please make sure it exists and is formatted correctly.")
 
 
+DATA = {}
+COUNT = [0,0]
 
-AUTH_TOKEN = parser["settings"]["authToken"]
-ORG_NAME = parser["settings"]["orgName"]
-MODULE = parser["modules"]["module"]
 MATCH_NAME = None
 DAYS = 0
-
 # UTC is 4 hours ahead of EST, so we need to subtract this from the gh timestamp
 # Note: this script may not run as intended if in another timezone
 UTC_OFFSET = 4*60*60 
 
+def init():
+    # Parse the config file
+    parser = configparser.ConfigParser()
+    try:
+        parser.read("config.ini")
+    except Exception:
+        sys.exit("There was an issue reading config.ini. Please make sure it exists and is formatted correctly.")
+
+    global DATA
+    DATA = parser
+
+    if(not DATA.has_option("settings", "authToken")):
+        sys.exit("Error: Auth token missing")
+    if(not DATA.has_option("settings", "orgName")):
+        sys.exit("Error: Organization name missing")
+
+    try:
+        gh = Github(DATA["settings"]["authToken"])
+    except Exception:
+        traceback.print_exc()
+        sys.exit("HTTP Request Failed")
+
+    print("Github initialized...")
+    return gh
+
+def parseArgs():
+    # Command line argument invoked
+    if(len(sys.argv) > 1):
+        # Check for help flag
+        if("-h" in sys.argv):
+            print("Options:")
+            print("     -n [s] only prints repos containing substring s, useful for checking only certain projects")
+            print("     -t [d] adds a buffer to the latest day a repo can be created in days")
+            print("     -h print this help menu again")
+            sys.exit()
+        else:
+            print("Parsing args...")
+
+        # Check for match name flag
+        if("-n" in sys.argv):
+            n_idx = sys.argv.index("-n")
+            if(len(sys.argv) >= n_idx+1):
+                MATCH_NAME = sys.argv[n_idx+1].lower()        
+            else:
+                sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")
+
+        # Check for buffer days flag
+        if("-t" in sys.argv):
+            t_idx = sys.argv.index("-t")
+            if(len(sys.argv) >= t_idx+1):
+                try:
+                    DAYS = int(sys.argv[t_idx+1])
+                except:
+                    sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")    
+            else:
+                sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")
+
+def parseDates():
+    modules = []
+    t1 = mktime(time.strptime(DATA["modules"]["startDate"], "%Y-%m-%d"))
+    t2 = mktime(time.strptime(DATA["modules"]["endDate"], "%Y-%m-%d"))
+    modules.append([DATA["modules"]["module"],t1,t2])
+
+    return modules
+
+def readRepos(gh, modules):
+    try:
+        repos = gh.get_organization(DATA["settings"]["orgName"]).get_repos()
+    except:
+        sys.exit("Error reading repos...")
+
+    print("Reading repos....")
+    modDict = {}
+
+    for repo in repos:
+
+        COUNT[0] += 1
+
+        progress(COUNT[0], repos.totalCount)
+
+        if(MATCH_NAME != None):
+            if(MATCH_NAME not in repo.name.lower()):
+                continue
+            else:
+                COUNT[1] += 1
+
+        # datetime.datetime objects
+        # Note: while repo.pushed_at should supply the last time a repo was pushed to
+        # It seems to provide a date later than the last commmit in some cases
+        # An alternative approach is commented out below that gets the last commit from the repo
+        # However, it is incredibly slow and would benefit from use in tandum with the -n flag
+        created = repo.created_at.timestamp()
+        finished = (repo.pushed_at-timedelta(seconds=UTC_OFFSET)).timestamp()
+
+        for mod in modules:
+            if((mod[1] <= created) and (created <= mod[2] + (DAYS * 24 * 60 * 60))): # Created in reasonable timespan
+                if(finished > mod[2]): # Finished before deadline
+                    modDict[mod[0]].append(repo.name + "\nCreated At: " + str(repo.created_at-timedelta(seconds=UTC_OFFSET)) + "\nUpdated At: " + str(repo.pushed_at-timedelta(seconds=UTC_OFFSET)) + "\n")
+    
+    return modDict
+
+def printRepos(modDict):
+    # Pretty print dictionary, itemized by module
+    print("\n\nTotal Repos Read: " + str(COUNT[0]))
+    if(MATCH_NAME is not None):
+        print("Matched Repos Read: " + str(COUNT[1]) + "\n")
+    else:
+        print("\n")
+    for key in modDict.keys():
+        print("--------------------\n")
+        print("---- Module: " + key + " ----\n")
+        for item in modDict[key]:
+            print(item)
+    print("--------------------")
+
+    
 ##
 #
 # Progress bar taken from
@@ -64,157 +172,12 @@ def progress(count, total, suffix=''):
     sys.stdout.flush()  # As suggested by Rom Ruben
 
 
+def main():
+    parseArgs()
+    gh = init()
+    modules = parseDates()
+    modDict = readRepos(gh, modules)
+    printRepos(modDict)
 
-if(AUTH_TOKEN == "" or ORG_NAME == ""):
-    sys.exit("Error: Auth token or organization name missing")
-
-syslen = len(sys.argv)
-
-# Total repo count
-count = 0
-# Named repo count
-matched_count = 0
-
-print("For a list of all commands, run `python3 late-repos.py -h`")
-
-# Command line argument invoked
-if(syslen > 1):
-    if("-h" in sys.argv):
-        print("Options:")
-        print("     -n [s] only prints repos containing substring s, useful for checking only certain projects")
-        print("     -t [d] adds a buffer to the latest day a repo can be created in days")
-        print("     -h print this help menu again")
-        sys.exit()
-    else:
-        print("Parsing args...")
-    if("-n" in sys.argv):
-        n_idx = sys.argv.index("-n")
-        if(syslen >= n_idx+1):
-            MATCH_NAME = sys.argv[n_idx+1].lower()        
-        else:
-            sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")
-    if("-t" in sys.argv):
-        t_idx = sys.argv.index("-t")
-        if(syslen >= t_idx+1):
-            try:
-                DAYS = int(sys.argv[t_idx+1])
-            except:
-                sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")    
-        else:
-            sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")
-
-# Convert days to seconds
-# Will still be 0 if arg not provided
-DAYS = DAYS * 24 * 60 * 60
-
-try:
-    gh = Github(AUTH_TOKEN)
-except Exception:
-    traceback.print_exc()
-    sys.exit("HTTP Request Failed")
-
-try:
-    ranges = open("dates.txt")
-except FileNotFoundError:
-    sys.exit("File not found!")
-
-modules = []
-mod_dict = {}
-finished = None
-
-mod_dict[MODULE] = []
-# Convert both dates to time_struct objects
-# Then convert to seconds via mktime()
-t1 = mktime(time.strptime(parser["modules"]["startDate"], "%Y-%m-%d"))
-t2 = mktime(time.strptime(parser["modules"]["endDate"], "%Y-%m-%d"))
-modules.append([MODULE,t1,t2])
-
-
-ranges.close()
-
-print("Reading repos....")
-
-repos = None
-
-try:
-    repos = gh.get_organization(ORG_NAME).get_repos()
-except:
-    sys.exit("Error reading repos...")
-
-for repo in repos:
-
-    count += 1
-
-    progress(count, repos.totalCount)
-
-    if(MATCH_NAME != None):
-        if(MATCH_NAME not in repo.name.lower()):
-            continue
-        else:
-            matched_count += 1
-
-    # datetime.datetime objects
-    # Note: while repo.pushed_at should supply the last time a repo was pushed to
-    # It seems to provide a date later than the last commmit in some cases
-    # An alternative approach is commented out below that gets the last commit from the repo
-    # However, it is incredibly slow and would benefit from use in tandum with the -n flag
-    created = repo.created_at.timestamp()
-    finished = (repo.pushed_at-timedelta(seconds=UTC_OFFSET)).timestamp()
-
-
-    ###
-    ##
-    ## Begin alternate commit-based approach 
-    ## Consider moving this inside of our check for repos created in the right timespan
-    ## to cut down on API calls made significantly
-    ##
-    ###
-    # try:
-    #     master = repo.get_branch("master")
-    # except:
-    #     print("no master branch")
-    #     finished = repo.updated_at
-
-    # if(finished == None):
-    #     print("aaa")
-    #     sha_com = master.commit
-    #     commit = repo.get_commit(sha=sha_com.sha)
-    #     timeObj = commit.commit.author.date
-
-    #     finished = timeObj
-
-    #     utc = ZoneInfo('UTC')
-    #     local_timezone = ZoneInfo("localtime")
-
-    #     utc_time = finished.replace(tzinfo=utc)
-    #     local = utc_time.astimezone(local_timezone)
-
-    #     finished = local.timestamp()
-    #     print(str(finished) + " " + repo.name)
-    ###
-    ##
-    ## End alternate commit-based approach 
-    ##
-    ###
-
-    for mod in modules:
-
-        if((mod[1] <= created) and (created <= mod[2]+DAYS)): # Created in reasonable timespan
-            if(finished > mod[2]): # Finished before deadline
-                mod_dict[mod[0]].append(repo.name + "\nCreated At: " + str(repo.created_at-timedelta(seconds=UTC_OFFSET)) + "\nUpdated At: " + str(repo.pushed_at-timedelta(seconds=UTC_OFFSET)) + "\n")
-    # Uncomment this line if implementing alternate approach
-    #finished = None
-
-
-# Pretty print dictionary, itemized by module
-print("\n\nTotal Repos Read: " + str(count))
-if(MATCH_NAME is not None):
-    print("Matched Repos Read: " + str(matched_count) + "\n")
-else:
-    print("\n")
-for key in mod_dict.keys():
-    print("--------------------\n")
-    print("---- Module: " + key + " ----\n")
-    for item in mod_dict[key]:
-        print(item)
-print("--------------------")
+if __name__=="__main__":
+    main()
