@@ -85,9 +85,6 @@ def init():
 # sets the global variable DAYS to the number of days to add to the latest day a repo can be created
 def parseArgs():
 
-    # Arguments for MATCH_NAME, days offset
-    args = [None,0]
-
     # Command line argument invoked
     if(len(sys.argv) > 1):
         # Check for help flag
@@ -118,7 +115,6 @@ def parseArgs():
                     sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")    
             else:
                 sys.exit("Usage: python3 late-repos.py [-n [Project_Name] -t [Days #]]")
-    return args
 
 ## Parses the dates from the config file
 #
@@ -145,7 +141,7 @@ def parseDates():
 # @param gh Github object
 # @param modules list of tuples containing the module name, start date, and end date
 # @return dictionary of modules and repos
-def readRepos(gh, modules, args):
+def readRepos(gh, modules):
     # attempts to fetch repos from the organization
     try:
         print(DATA["settings"]["orgName"])
@@ -195,7 +191,7 @@ def readRepos(gh, modules, args):
 # Prints the repos in the dictionary in a readable format
 #
 # @param modDict dictionary of modules and repos
-def printRepos(modDict, args):
+def printRepos(modDict):
     # Pretty print dictionary, itemized by module
     print("\n\nTotal Repos Read: " + str(COUNT[0]))
     if(ARGS[0] is not None):
